@@ -1,0 +1,214 @@
+
+name: CI/CD Pipeline
+
+on:
+  push:
+    branches: [main]
+    paths-ignore:
+      - 'kubernetes/deployment.yaml'
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+  id-token: write
+
+env:
+  AWS_REGION: ${{ vars.AWS_REGION }}
+  ECR_REPOSITORY: ${{ vars.ECR_REPOSITORY }}
+
+jobs:
+  # --------------------------------------------------
+  # 1. Unit Testing
+  # --------------------------------------------------
+  test:
+    name: Unit Testing
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run tests
+        run: npm test
+
+  # --------------------------------------------------
+  # 2. Static Code Analysis
+  # --------------------------------------------------
+  lint:
+    name: Static Code Analysis
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run ESLint
+        run: npm run lint
+
+  # --------------------------------------------------
+  # 3. Build Application
+  # --------------------------------------------------
+  build:
+    name: Build
+    runs-on: ubuntu-latest
+    needs: [test, lint]
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build project
+        run: npm run build
+
+      - name: Upload build artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-artifacts
+          path: dist/
+
+  # --------------------------------------------------
+  # 4. Build, Scan and Push Docker Image to ECR
+  # --------------------------------------------------
+  docker:
+    name: Docker Build and Push to ECR
+    runs-on: ubuntu-latest
+    needs: [build]
+
+    # Only push images from main branch pushes.
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+
+    outputs:
+      image_tag: ${{ steps.set_output.outputs.image_tag }}
+      image_uri: ${{ steps.set_output.outputs.image_uri }}
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Download build artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: build-artifacts
+          path: dist/
+
+      # Authenticate through GitHub OIDC; no AWS access keys needed.
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_TERRAFORM_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Login to Amazon ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Set image details
+        id: set_output
+        env:
+          REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+          REPOSITORY: ${{ env.ECR_REPOSITORY }}
+          SHA: ${{ github.sha }}
+        run: |
+          echo "image_tag=sha-${SHA}" >> "$GITHUB_OUTPUT"
+          echo "image_uri=${REGISTRY}/${REPOSITORY}:sha-${SHA}" >> "$GITHUB_OUTPUT"
+
+      - name: Build Docker image
+        env:
+          IMAGE_URI: ${{ steps.set_output.outputs.image_uri }}
+        run: docker build -t "$IMAGE_URI" .
+
+      # Scan the locally built image before pushing it.
+      - name: Run Trivy vulnerability scanner
+        uses: aquasecurity/trivy-action@0.28.0
+        with:
+          image-ref: ${{ steps.set_output.outputs.image_uri }}
+          format: table
+          exit-code: '1'
+          ignore-unfixed: true
+          vuln-type: os,library
+          severity: CRITICAL,HIGH
+
+      - name: Push Docker image to ECR
+        env:
+          IMAGE_URI: ${{ steps.set_output.outputs.image_uri }}
+        run: docker push "$IMAGE_URI"
+
+  # --------------------------------------------------
+  # 5. Update Kubernetes Deployment Manifest
+  # --------------------------------------------------
+  update-k8s:
+    name: Update Kubernetes Deployment
+    runs-on: ubuntu-latest
+    needs: [docker]
+
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.TOKEN }}
+
+      - name: Setup Git config
+        run: |
+          git config user.name "GitHub Actions"
+          git config user.email "actions@github.com"
+
+      - name: Update Kubernetes deployment file
+        env:
+          IMAGE_URI: ${{ needs.docker.outputs.image_uri }}
+        run: |
+          test -n "$IMAGE_URI" || {
+            echo "ERROR: ECR image URI is empty"
+            exit 1
+          }
+
+          sed -i -E \
+            "s|^([[:space:]]*image:[[:space:]]*).*$|\1${IMAGE_URI}|" \
+            kubernetes/deployment.yaml
+
+          echo "Updated deployment image:"
+          grep -n 'image:' kubernetes/deployment.yaml
+
+      - name: Commit and push changes
+        run: |
+          git add kubernetes/deployment.yaml
+
+          if git diff --cached --quiet; then
+            echo "No changes to commit"
+            exit 0
+          fi
+
+          git commit -m "Update Kubernetes image to ${{ needs.docker.outputs.image_tag }} [skip ci]"
+          git push

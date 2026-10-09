@@ -147,7 +147,7 @@ jobs:
 
       # Scan the locally built image before pushing it.
       - name: Run Trivy vulnerability scanner
-        uses: aquasecurity/trivy-action@0.28.0
+        uses: aquasecurity/trivy-action@0.35.0
         with:
           image-ref: ${{ steps.set_output.outputs.image_uri }}
           format: table

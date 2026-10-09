@@ -42,7 +42,6 @@ module "eks" {
       capacity_type = "ON_DEMAND"
 
       subnet_ids = var.subnet_ids
-      # Pass identity values explicitly
 
     }
   }

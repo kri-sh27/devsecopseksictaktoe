@@ -17,7 +17,7 @@ spec:
     spec:
       containers:
         - name: tic-tac-toe
-          image: YOUR_AWS_ACCOUNT_ID.dkr.ecr.ap-south-1.amazonaws.com/YOUR_ECR_REPOSITORY:initial
+          image: 929897439921.dkr.ecr.ap-south-1.amazonaws.com/my-app:sha-c84e9631d9c6f02027877154fb658e49d6c76f45
           # Image is automatically updated by the CI/CD pipeline
           imagePullPolicy: Always
           ports:

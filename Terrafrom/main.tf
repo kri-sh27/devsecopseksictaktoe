@@ -1,12 +1,14 @@
 # Find the existing ECR repository used by GitHub Actions
+
+
 data "aws_ecr_repository" "app" {
   name = "my-app"
 }
 
 
 resource "aws_vpc" "myvpc" {
-  cidr_block       = var.cidr_block
-  instance_tenancy = "default"
+  cidr_block           = var.cidr_block
+  instance_tenancy     = "default"
   enable_dns_support   = true
   enable_dns_hostnames = true
 
@@ -22,8 +24,8 @@ resource "aws_subnet" "sub1" {
   map_public_ip_on_launch = true
 
   tags = {
-    Name                                  = "eks-public-subnet-1"
-    "kubernetes.io/role/elb"               = "1"
+    Name                                     = "eks-public-subnet-1"
+    "kubernetes.io/role/elb"                 = "1"
     "kubernetes.io/cluster/main-eks-cluster" = "shared"
   }
 }
@@ -33,10 +35,10 @@ resource "aws_subnet" "sub2" {
   cidr_block              = var.subnet_cidr_sub2
   availability_zone       = "ap-south-1b"
   map_public_ip_on_launch = true
-  
+
   tags = {
-    Name                                  = "eks-public-subnet-2"
-    "kubernetes.io/role/elb"               = "1"
+    Name                                     = "eks-public-subnet-2"
+    "kubernetes.io/role/elb"                 = "1"
     "kubernetes.io/cluster/main-eks-cluster" = "shared"
   }
 }
@@ -172,8 +174,10 @@ resource "aws_lb_listener" "listener" {
 module "eks" {
   source = "./module/eks"
 
+
   cluster_name       = "main-eks-cluster"
   kubernetes_version = "1.36"
+
 
   vpc_id = aws_vpc.myvpc.id
 
@@ -181,10 +185,7 @@ module "eks" {
     aws_subnet.sub1.id,
     aws_subnet.sub2.id
   ]
-  depends_on = [
-    aws_route_table_association.rta1,
-    aws_route_table_association.rta2
-  ]
+  
 }
 
 output "cluster_name" {
@@ -206,8 +207,4 @@ output "application_image_uri" {
 
 output "load_balancer_dns_name" {
   value = aws_lb.myalb.dns_name
-}
-
-output "ecr_repository_url" {
-  value = aws_ecr_repository.app.repository_url
 }

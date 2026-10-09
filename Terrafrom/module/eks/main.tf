@@ -1,7 +1,6 @@
 module "eks" {
-  source  = "terraform-aws-modules/eks/aws"
-  version = "~> 21.0"
-
+  source             = "terraform-aws-modules/eks/aws"
+  version            = "~> 21.0"
   name               = var.cluster_name
   kubernetes_version = var.kubernetes_version
 
@@ -43,6 +42,8 @@ module "eks" {
       capacity_type = "ON_DEMAND"
 
       subnet_ids = var.subnet_ids
+      # Pass identity values explicitly
+
     }
   }
 

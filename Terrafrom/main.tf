@@ -4,6 +4,7 @@
 data "aws_ecr_repository" "app" {
   name = "my-app"
 }
+
 resource "aws_vpc" "myvpc" {
   cidr_block           = var.cidr_block
   instance_tenancy     = "default"
@@ -47,7 +48,6 @@ resource "aws_internet_gateway" "igw" {
     Name = "myigw"
   }
 }
-
 resource "aws_route_table" "rt" {
   vpc_id = aws_vpc.myvpc.id
 

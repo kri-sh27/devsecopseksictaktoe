@@ -115,8 +115,6 @@ resource "aws_ecr_repository" "app" {
     Name = "my-app"
   }
 }
-
-
 resource "aws_lb" "myalb" {
   name               = "myalb"
   internal           = false

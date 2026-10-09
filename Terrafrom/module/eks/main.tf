@@ -53,4 +53,3 @@ module "eks" {
     ManagedBy   = "Terraform"
   }
 }
-

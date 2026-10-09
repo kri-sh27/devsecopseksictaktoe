@@ -104,7 +104,7 @@ resource "aws_security_group" "websg" {
 
 
 resource "aws_ecr_repository" "app" {
-  name                 = "aws-training-app"
+  name                 = "my-app"
   image_tag_mutability = "MUTABLE"
 
   image_scanning_configuration {
@@ -112,7 +112,7 @@ resource "aws_ecr_repository" "app" {
   }
 
   tags = {
-    Name = "aws-training-app"
+    Name = "my-app"
   }
 }
 

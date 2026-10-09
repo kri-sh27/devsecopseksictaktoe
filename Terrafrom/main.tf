@@ -174,7 +174,7 @@ module "eks" {
     aws_subnet.sub1.id,
     aws_subnet.sub2.id
   ]
-  
+
 }
 
 output "cluster_name" {

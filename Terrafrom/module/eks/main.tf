@@ -31,7 +31,9 @@ module "eks" {
 
   eks_managed_node_groups = {
     main = {
-      name = "main-node-group"
+      name               = "main-node-group"
+      kubernetes_version = var.kubernetes_version
+
 
       instance_types = ["t3.small"]
 

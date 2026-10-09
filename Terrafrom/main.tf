@@ -1,9 +1,9 @@
 # Find the existing ECR repository used by GitHub Actions
 
 
-data "aws_ecr_repository" "app" {
-  name = "my-app"
-}
+# data "aws_ecr_repository" "app" {
+#   name = "my-app"
+# }
 
 resource "aws_vpc" "myvpc" {
   cidr_block           = var.cidr_block
@@ -186,11 +186,11 @@ output "cluster_endpoint" {
 }
 
 output "ecr_repository_url" {
-  value = data.aws_ecr_repository.app.repository_url
+  value = aws_ecr_repository.app.repository_url
 }
 
 output "application_image_uri" {
-  value = "${data.aws_ecr_repository.app.repository_url}:latest"
+  value = "${aws_ecr_repository.app.repository_url}:latest"
 }
 
 

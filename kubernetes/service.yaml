@@ -5,7 +5,7 @@ metadata:
   labels:
     app: tic-tac-toe
 spec:
-  type: ClusterIP
+  type: LoadBalancer
   ports:
   - port: 80
     targetPort: 80

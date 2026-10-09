@@ -102,7 +102,6 @@ resource "aws_security_group" "websg" {
   }
 }
 
-
 resource "aws_ecr_repository" "app" {
   name                 = "my-app"
   image_tag_mutability = "MUTABLE"

@@ -16,7 +16,6 @@ resource "aws_vpc" "myvpc" {
     Name = "myvpc"
   }
 }
-
 resource "aws_subnet" "sub1" {
   vpc_id                  = aws_vpc.myvpc.id
   cidr_block              = var.subnet_cidr_sub1

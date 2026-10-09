@@ -167,8 +167,6 @@ resource "aws_lb_listener" "listener" {
 #   alb_target_group = aws_lb_target_group.tg.arn
 
 # }
-
-
 module "eks" {
   source = "./module/eks"
 

@@ -17,7 +17,7 @@ spec:
     spec:
       containers:
         - name: tic-tac-toe
-          image: 929897439921.dkr.ecr.ap-south-1.amazonaws.com/my-app:sha-c84e9631d9c6f02027877154fb658e49d6c76f45
+          image: 929897439921.dkr.ecr.ap-south-1.amazonaws.com/my-app:sha-ca4937bf2b3ee054967156b0388216bb9b5af155
           # Image is automatically updated by the CI/CD pipeline
           imagePullPolicy: Always
           ports:

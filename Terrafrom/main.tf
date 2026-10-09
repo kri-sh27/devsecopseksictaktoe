@@ -125,7 +125,6 @@ resource "aws_lb" "myalb" {
     Name = "myalb"
   }
 }
-
 resource "aws_lb_target_group" "tg" {
   name        = "mytg"
   port        = 80

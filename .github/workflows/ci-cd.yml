@@ -2,12 +2,14 @@
 name: CI/CD Pipeline
 
 on:
-  push:
-    branches: [main]
-    paths-ignore:
-      - 'kubernetes/deployment.yaml'
   pull_request:
     branches: [main]
+
+  workflow_run:
+    workflows:
+      - "Terraform - Provision EKS"
+    types:
+      - completed
 
 permissions:
   contents: read
@@ -25,9 +27,19 @@ jobs:
     name: Unit Testing
     runs-on: ubuntu-latest
 
+    if: >-
+      github.event_name == 'pull_request' ||
+      (
+        github.event_name == 'workflow_run' &&
+        github.event.workflow_run.conclusion == 'success' &&
+        github.event.workflow_run.head_branch == 'main'
+      )
+
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.workflow_run.head_sha || github.sha }}
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
@@ -47,10 +59,19 @@ jobs:
   lint:
     name: Static Code Analysis
     runs-on: ubuntu-latest
+    if: >-
+      github.event_name == 'pull_request' ||
+      (
+        github.event_name == 'workflow_run' &&
+        github.event.workflow_run.conclusion == 'success' &&
+        github.event.workflow_run.head_branch == 'main'
+      )
 
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.workflow_run.head_sha || github.sha }}
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
@@ -71,10 +92,19 @@ jobs:
     name: Build
     runs-on: ubuntu-latest
     needs: [test, lint]
+    if: >-
+      github.event_name == 'pull_request' ||
+      (
+        github.event_name == 'workflow_run' &&
+        github.event.workflow_run.conclusion == 'success' &&
+        github.event.workflow_run.head_branch == 'main'
+      )
 
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.workflow_run.head_sha || github.sha }}
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
@@ -103,7 +133,10 @@ jobs:
     needs: [build]
 
     # Only push images from main branch pushes.
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    if: >-
+      github.event_name == 'workflow_run' &&
+      github.event.workflow_run.conclusion == 'success' &&
+      github.event.workflow_run.head_branch == 'main'
 
     outputs:
       image_tag: ${{ steps.set_output.outputs.image_tag }}
@@ -112,6 +145,8 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.workflow_run.head_sha || github.sha }}
 
       - name: Download build artifacts
         uses: actions/download-artifact@v4
@@ -135,7 +170,7 @@ jobs:
         env:
           REGISTRY: ${{ steps.login-ecr.outputs.registry }}
           REPOSITORY: ${{ env.ECR_REPOSITORY }}
-          SHA: ${{ github.sha }}
+          SHA: ${{ github.event.workflow_run.head_sha || github.sha }}
         run: |
           echo "image_tag=sha-${SHA}" >> "$GITHUB_OUTPUT"
           echo "image_uri=${REGISTRY}/${REPOSITORY}:sha-${SHA}" >> "$GITHUB_OUTPUT"
@@ -169,7 +204,10 @@ jobs:
     runs-on: ubuntu-latest
     needs: [docker]
 
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    if: >-
+      github.event_name == 'workflow_run' &&
+      github.event.workflow_run.conclusion == 'success' &&
+      github.event.workflow_run.head_branch == 'main'
 
     permissions:
       contents: write
@@ -178,6 +216,7 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
         with:
+          ref: ${{ github.event.workflow_run.head_sha }}
           token: ${{ secrets.TOKEN }}
 
       - name: Setup Git config

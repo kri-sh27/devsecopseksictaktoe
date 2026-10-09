@@ -6,10 +6,8 @@ on:
   push:
     branches:
       - main
-    paths:
-      - '*.tf'
-      - 'module/eks/**'
-      - '.github/workflows/terraform.yml'
+    paths-ignore:
+      - 'kubernetes/deployment.yaml'
 
 permissions:
   id-token: write
@@ -34,13 +32,17 @@ jobs:
         uses: hashicorp/setup-terraform@v3
 
       - name: Terraform Init
+        working-directory: ./Terrafrom
         run: terraform init
 
       - name: Terraform Validate
+        working-directory: ./Terrafrom
         run: terraform validate
 
       - name: Terraform Plan
+        working-directory: ./Terrafrom
         run: terraform plan -out=tfplan
 
       - name: Terraform Apply
+        working-directory: ./Terrafrom
         run: terraform apply -auto-approve tfplan

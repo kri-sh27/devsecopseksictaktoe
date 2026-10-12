@@ -254,7 +254,7 @@
 #           git push origin HEAD:main
 
 
-name: CI/CD Pipeline
+
 
 # on:
 #   pull_request:
@@ -264,6 +264,9 @@ name: CI/CD Pipeline
 #     branches: [main]
 
 #   workflow_dispatch:
+
+name: CI/CD Pipeline
+
 on:
   pull_request:
     branches: [main]
@@ -372,12 +375,9 @@ jobs:
     needs: [build]
 
     if: >-
-      github.ref == 'refs/heads/main' &&
-      (
-        github.event_name == 'push' ||
-        github.event_name == 'workflow_dispatch'
-      )
-
+      github.event_name == 'workflow_run' &&
+      github.event.workflow_run.conclusion == 'success' &&
+      github.event.workflow_run.head_branch == 'main'
     outputs:
       image_tag: ${{ steps.image.outputs.image_tag }}
       image_uri: ${{ steps.image.outputs.image_uri }}
@@ -454,11 +454,9 @@ jobs:
     needs: [docker]
 
     if: >-
-      github.ref == 'refs/heads/main' &&
-      (
-        github.event_name == 'push' ||
-        github.event_name == 'workflow_dispatch'
-      )
+      github.event_name == 'workflow_run' &&
+      github.event.workflow_run.conclusion == 'success' &&
+      github.event.workflow_run.head_branch == 'main'
 
     # Prevent concurrent deployments to the same environment.
     concurrency:

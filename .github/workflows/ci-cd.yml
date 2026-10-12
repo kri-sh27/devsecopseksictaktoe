@@ -1,6 +1,269 @@
 
+# name: CI/CD Pipeline
+
+# on:
+#   pull_request:
+#     branches: [main]
+
+#   workflow_run:
+#     workflows:
+#       - "Terraform - Provision EKS"
+#     types:
+#       - completed
+
+# permissions:
+#   contents: read
+#   id-token: write
+
+# env:
+#   AWS_REGION: ${{ vars.AWS_REGION }}
+#   ECR_REPOSITORY: ${{ vars.ECR_REPOSITORY }}
+#   EKS_CLUSTER_NAME: main-eks-cluster
+
+# jobs:
+#   # --------------------------------------------------
+#   # 1. Unit Testing
+#   # --------------------------------------------------
+#   test:
+#     name: Unit Testing
+#     runs-on: ubuntu-latest
+
+#     if: >-
+#       github.event_name == 'pull_request' ||
+#       (
+#         github.event_name == 'workflow_run' &&
+#         github.event.workflow_run.conclusion == 'success' &&
+#         github.event.workflow_run.head_branch == 'main'
+#       )
+
+#     steps:
+#       - name: Checkout code
+#         uses: actions/checkout@v4
+#         with:
+#           ref: ${{ github.event.workflow_run.head_sha || github.sha }}
+
+#       - name: Setup Node.js
+#         uses: actions/setup-node@v4
+#         with:
+#           node-version: '20'
+#           cache: npm
+
+#       - name: Install dependencies
+#         run: npm ci
+
+#       - name: Run tests
+#         run: npm test
+
+#   # --------------------------------------------------
+#   # 2. Static Code Analysis
+#   # --------------------------------------------------
+#   lint:
+#     name: Static Code Analysis
+#     runs-on: ubuntu-latest
+#     if: >-
+#       github.event_name == 'pull_request' ||
+#       (
+#         github.event_name == 'workflow_run' &&
+#         github.event.workflow_run.conclusion == 'success' &&
+#         github.event.workflow_run.head_branch == 'main'
+#       )
+
+#     steps:
+#       - name: Checkout code
+#         uses: actions/checkout@v4
+#         with:
+#           ref: ${{ github.event.workflow_run.head_sha || github.sha }}
+
+#       - name: Setup Node.js
+#         uses: actions/setup-node@v4
+#         with:
+#           node-version: '20'
+#           cache: npm
+
+#       - name: Install dependencies
+#         run: npm ci
+
+#       - name: Run ESLint
+#         run: npm run lint
+
+#   # --------------------------------------------------
+#   # 3. Build Application
+#   # --------------------------------------------------
+#   build:
+#     name: Build
+#     runs-on: ubuntu-latest
+#     needs: [test, lint]
+#     if: >-
+#       github.event_name == 'pull_request' ||
+#       (
+#         github.event_name == 'workflow_run' &&
+#         github.event.workflow_run.conclusion == 'success' &&
+#         github.event.workflow_run.head_branch == 'main'
+#       )
+
+#     steps:
+#       - name: Checkout code
+#         uses: actions/checkout@v4
+#         with:
+#           ref: ${{ github.event.workflow_run.head_sha || github.sha }}
+
+#       - name: Setup Node.js
+#         uses: actions/setup-node@v4
+#         with:
+#           node-version: '20'
+#           cache: npm
+
+#       - name: Install dependencies
+#         run: npm ci
+
+#       - name: Build project
+#         run: npm run build
+
+#       - name: Upload build artifacts
+#         uses: actions/upload-artifact@v4
+#         with:
+#           name: build-artifacts
+#           path: dist/
+
+#   # --------------------------------------------------
+#   # 4. Build, Scan and Push Docker Image to ECR
+#   # --------------------------------------------------
+#   docker:
+#     name: Docker Build and Push to ECR
+#     runs-on: ubuntu-latest
+#     needs: [build]
+
+#     # Only push images from main branch pushes.
+#     if: >-
+#       github.event_name == 'workflow_run' &&
+#       github.event.workflow_run.conclusion == 'success' &&
+#       github.event.workflow_run.head_branch == 'main'
+
+#     outputs:
+#       image_tag: ${{ steps.set_output.outputs.image_tag }}
+#       image_uri: ${{ steps.set_output.outputs.image_uri }}
+
+#     steps:
+#       - name: Checkout code
+#         uses: actions/checkout@v4
+#         with:
+#           ref: ${{ github.event.workflow_run.head_sha || github.sha }}
+
+#       - name: Download build artifacts
+#         uses: actions/download-artifact@v4
+#         with:
+#           name: build-artifacts
+#           path: dist/
+
+#       # Authenticate through GitHub OIDC; no AWS access keys needed.
+#       - name: Configure AWS credentials
+#         uses: aws-actions/configure-aws-credentials@v4
+#         with:
+#           role-to-assume: ${{ secrets.AWS_TERRAFORM_ROLE_ARN }}
+#           aws-region: ${{ env.AWS_REGION }}
+
+#       - name: Login to Amazon ECR
+#         id: login-ecr
+#         uses: aws-actions/amazon-ecr-login@v2
+
+#       - name: Set image details
+#         id: set_output
+#         env:
+#           REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+#           REPOSITORY: ${{ env.ECR_REPOSITORY }}
+#           SHA: ${{ github.event.workflow_run.head_sha || github.sha }}
+#         run: |
+#           echo "image_tag=sha-${SHA}" >> "$GITHUB_OUTPUT"
+#           echo "image_uri=${REGISTRY}/${REPOSITORY}:sha-${SHA}" >> "$GITHUB_OUTPUT"
+
+#       - name: Build Docker image
+#         env:
+#           IMAGE_URI: ${{ steps.set_output.outputs.image_uri }}
+#         run: docker build -t "$IMAGE_URI" .
+
+#       # Scan the locally built image before pushing it.
+#       - name: Run Trivy vulnerability scanner
+#         uses: aquasecurity/trivy-action@0.35.0
+#         with:
+#           image-ref: ${{ steps.set_output.outputs.image_uri }}
+#           format: table
+#           exit-code: '1'
+#           ignore-unfixed: true
+#           vuln-type: os,library
+#           severity: CRITICAL,HIGH
+
+#       - name: Push Docker image to ECR
+#         env:
+#           IMAGE_URI: ${{ steps.set_output.outputs.image_uri }}
+#         run: docker push "$IMAGE_URI"
+
+#   # --------------------------------------------------
+#   # 5. Update Kubernetes Deployment Manifest
+#   # --------------------------------------------------
+#   update-k8s:
+#     name: Update Kubernetes Deployment
+#     runs-on: ubuntu-latest
+#     needs: [docker]
+
+#     if: >-
+#       github.event_name == 'workflow_run' &&
+#       github.event.workflow_run.conclusion == 'success' &&
+#       github.event.workflow_run.head_branch == 'main'
+
+#     permissions:
+#       contents: write
+
+#     steps:
+#       - name: Checkout code
+#         uses: actions/checkout@v4
+#         with:
+#           ref: ${{ github.event.workflow_run.head_sha }}
+#           token: ${{ secrets.TOKEN }}
+
+#       - name: Setup Git config
+#         run: |
+#           git config user.name "GitHub Actions"
+#           git config user.email "actions@github.com"
+
+#       - name: Update Kubernetes deployment file
+#         env:
+#           IMAGE_URI: ${{ needs.docker.outputs.image_uri }}
+#         run: |
+#           test -n "$IMAGE_URI" || {
+#             echo "ERROR: ECR image URI is empty"
+#             exit 1
+#           }
+
+#           sed -i -E \
+#             "s|^([[:space:]]*image:[[:space:]]*).*$|\1${IMAGE_URI}|" \
+#             kubernetes/deployment.yaml
+
+#           echo "Updated deployment image:"
+#           grep -n 'image:' kubernetes/deployment.yaml
+
+#       - name: Commit and push changes
+#         run: |
+#           git add kubernetes/deployment.yaml
+
+#           if git diff --cached --quiet; then
+#             echo "No changes to commit"
+#             exit 0
+#           fi
+
+#           git commit -m "Update Kubernetes image to ${{ needs.docker.outputs.image_tag }} [skip ci]"
+#           git push origin HEAD:main
+
+
 name: CI/CD Pipeline
 
+# on:
+#   pull_request:
+#     branches: [main]
+
+#   push:
+#     branches: [main]
+
+#   workflow_dispatch:
 on:
   pull_request:
     branches: [main]
@@ -18,6 +281,8 @@ permissions:
 env:
   AWS_REGION: ${{ vars.AWS_REGION }}
   ECR_REPOSITORY: ${{ vars.ECR_REPOSITORY }}
+  EKS_CLUSTER_NAME: main-eks-cluster
+  K8S_NAMESPACE: tic-tac-toe
 
 jobs:
   # --------------------------------------------------
@@ -27,24 +292,14 @@ jobs:
     name: Unit Testing
     runs-on: ubuntu-latest
 
-    if: >-
-      github.event_name == 'pull_request' ||
-      (
-        github.event_name == 'workflow_run' &&
-        github.event.workflow_run.conclusion == 'success' &&
-        github.event.workflow_run.head_branch == 'main'
-      )
-
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
-        with:
-          ref: ${{ github.event.workflow_run.head_sha || github.sha }}
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version: "20"
           cache: npm
 
       - name: Install dependencies
@@ -59,24 +314,15 @@ jobs:
   lint:
     name: Static Code Analysis
     runs-on: ubuntu-latest
-    if: >-
-      github.event_name == 'pull_request' ||
-      (
-        github.event_name == 'workflow_run' &&
-        github.event.workflow_run.conclusion == 'success' &&
-        github.event.workflow_run.head_branch == 'main'
-      )
 
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
-        with:
-          ref: ${{ github.event.workflow_run.head_sha || github.sha }}
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version: "20"
           cache: npm
 
       - name: Install dependencies
@@ -89,27 +335,18 @@ jobs:
   # 3. Build Application
   # --------------------------------------------------
   build:
-    name: Build
+    name: Build Application
     runs-on: ubuntu-latest
     needs: [test, lint]
-    if: >-
-      github.event_name == 'pull_request' ||
-      (
-        github.event_name == 'workflow_run' &&
-        github.event.workflow_run.conclusion == 'success' &&
-        github.event.workflow_run.head_branch == 'main'
-      )
 
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
-        with:
-          ref: ${{ github.event.workflow_run.head_sha || github.sha }}
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version: "20"
           cache: npm
 
       - name: Install dependencies
@@ -123,30 +360,31 @@ jobs:
         with:
           name: build-artifacts
           path: dist/
+          if-no-files-found: error
 
   # --------------------------------------------------
   # 4. Build, Scan and Push Docker Image to ECR
+  # Runs only on main push or manual run on main
   # --------------------------------------------------
   docker:
     name: Docker Build and Push to ECR
     runs-on: ubuntu-latest
     needs: [build]
 
-    # Only push images from main branch pushes.
     if: >-
-      github.event_name == 'workflow_run' &&
-      github.event.workflow_run.conclusion == 'success' &&
-      github.event.workflow_run.head_branch == 'main'
+      github.ref == 'refs/heads/main' &&
+      (
+        github.event_name == 'push' ||
+        github.event_name == 'workflow_dispatch'
+      )
 
     outputs:
-      image_tag: ${{ steps.set_output.outputs.image_tag }}
-      image_uri: ${{ steps.set_output.outputs.image_uri }}
+      image_tag: ${{ steps.image.outputs.image_tag }}
+      image_uri: ${{ steps.image.outputs.image_uri }}
 
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
-        with:
-          ref: ${{ github.event.workflow_run.head_sha || github.sha }}
 
       - name: Download build artifacts
         uses: actions/download-artifact@v4
@@ -154,7 +392,18 @@ jobs:
           name: build-artifacts
           path: dist/
 
-      # Authenticate through GitHub OIDC; no AWS access keys needed.
+      - name: Validate configuration
+        run: |
+          test -n "$AWS_REGION" || {
+            echo "AWS_REGION repository variable is missing"
+            exit 1
+          }
+
+          test -n "$ECR_REPOSITORY" || {
+            echo "ECR_REPOSITORY repository variable is missing"
+            exit 1
+          }
+
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4
         with:
@@ -166,88 +415,120 @@ jobs:
         uses: aws-actions/amazon-ecr-login@v2
 
       - name: Set image details
-        id: set_output
+        id: image
         env:
           REGISTRY: ${{ steps.login-ecr.outputs.registry }}
           REPOSITORY: ${{ env.ECR_REPOSITORY }}
-          SHA: ${{ github.event.workflow_run.head_sha || github.sha }}
+          SHA: ${{ github.sha }}
         run: |
           echo "image_tag=sha-${SHA}" >> "$GITHUB_OUTPUT"
-          echo "image_uri=${REGISTRY}/${REPOSITORY}:sha-${SHA}" >> "$GITHUB_OUTPUT"
+          echo "image_uri=${REGISTRY}/${REPOSITORY}:sha-${SHA}" \
+            >> "$GITHUB_OUTPUT"
 
       - name: Build Docker image
         env:
-          IMAGE_URI: ${{ steps.set_output.outputs.image_uri }}
+          IMAGE_URI: ${{ steps.image.outputs.image_uri }}
         run: docker build -t "$IMAGE_URI" .
 
-      # Scan the locally built image before pushing it.
-      - name: Run Trivy vulnerability scanner
+      - name: Scan Docker image with Trivy
         uses: aquasecurity/trivy-action@0.35.0
         with:
-          image-ref: ${{ steps.set_output.outputs.image_uri }}
+          image-ref: ${{ steps.image.outputs.image_uri }}
           format: table
-          exit-code: '1'
+          exit-code: "1"
           ignore-unfixed: true
           vuln-type: os,library
           severity: CRITICAL,HIGH
 
       - name: Push Docker image to ECR
         env:
-          IMAGE_URI: ${{ steps.set_output.outputs.image_uri }}
+          IMAGE_URI: ${{ steps.image.outputs.image_uri }}
         run: docker push "$IMAGE_URI"
 
   # --------------------------------------------------
-  # 5. Update Kubernetes Deployment Manifest
+  # 5. Deploy application to EKS Fargate
   # --------------------------------------------------
-  update-k8s:
-    name: Update Kubernetes Deployment
+  deploy:
+    name: Deploy to EKS Fargate
     runs-on: ubuntu-latest
     needs: [docker]
 
     if: >-
-      github.event_name == 'workflow_run' &&
-      github.event.workflow_run.conclusion == 'success' &&
-      github.event.workflow_run.head_branch == 'main'
+      github.ref == 'refs/heads/main' &&
+      (
+        github.event_name == 'push' ||
+        github.event_name == 'workflow_dispatch'
+      )
 
-    permissions:
-      contents: write
+    # Prevent concurrent deployments to the same environment.
+    concurrency:
+      group: tic-tac-toe-eks-production
+      cancel-in-progress: false
 
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
         with:
-          ref: ${{ github.event.workflow_run.head_sha }}
-          token: ${{ secrets.TOKEN }}
+          role-to-assume: ${{ secrets.AWS_TERRAFORM_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
 
-      - name: Setup Git config
+      - name: Configure kubectl
         run: |
-          git config user.name "GitHub Actions"
-          git config user.email "actions@github.com"
+          aws eks update-kubeconfig \
+            --region "$AWS_REGION" \
+            --name "$EKS_CLUSTER_NAME"
 
-      - name: Update Kubernetes deployment file
+      - name: Verify EKS access
+        run: |
+          kubectl get namespace
+          kubectl auth can-i create deployments \
+            --namespace "$K8S_NAMESPACE"
+
+      - name: Create application namespace
+        run: |
+          kubectl create namespace "$K8S_NAMESPACE" \
+            --dry-run=client -o yaml | kubectl apply -f -
+
+      - name: Update deployment image
         env:
           IMAGE_URI: ${{ needs.docker.outputs.image_uri }}
         run: |
           test -n "$IMAGE_URI" || {
-            echo "ERROR: ECR image URI is empty"
+            echo "ERROR: Docker image URI is empty"
             exit 1
           }
 
-          sed -i -E \
+          test -f kubernetes/deployment.yaml
+          test -f kubernetes/service.yaml
+          test -f kubernetes/ingress.yaml
+
+          sed -E \
             "s|^([[:space:]]*image:[[:space:]]*).*$|\1${IMAGE_URI}|" \
-            kubernetes/deployment.yaml
+            kubernetes/deployment.yaml > /tmp/deployment.yaml
 
-          echo "Updated deployment image:"
-          grep -n 'image:' kubernetes/deployment.yaml
+          echo "Deploying image: $IMAGE_URI"
+          grep -n 'image:' /tmp/deployment.yaml
 
-      - name: Commit and push changes
+      - name: Apply Kubernetes manifests
         run: |
-          git add kubernetes/deployment.yaml
+          kubectl apply -f kubernetes/service.yaml
+          kubectl apply -f /tmp/deployment.yaml
+          kubectl apply -f kubernetes/ingress.yaml
 
-          if git diff --cached --quiet; then
-            echo "No changes to commit"
-            exit 0
-          fi
+      - name: Wait for application rollout
+        run: |
+          kubectl rollout status deployment/tic-tac-toe \
+            --namespace "$K8S_NAMESPACE" \
+            --timeout=5m
 
-          git commit -m "Update Kubernetes image to ${{ needs.docker.outputs.image_tag }} [skip ci]"
-          git push
+      - name: Show deployment status
+        if: always()
+        run: |
+          kubectl get deployments,pods,services,ingress \
+            --namespace "$K8S_NAMESPACE" || true
+
+          kubectl get ingress "$K8S_NAMESPACE" \
+            --namespace "$K8S_NAMESPACE" 2>/dev/null || true

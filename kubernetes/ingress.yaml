@@ -2,6 +2,7 @@ apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
   name: tic-tac-toe-ingress
+  namespace: tic-tac-toe
   annotations:
     kubernetes.io/ingress.class: alb
     # Add additional annotations as needed for your specific ingress controller

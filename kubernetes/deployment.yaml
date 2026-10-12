@@ -3,6 +3,7 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: tic-tac-toe
+  namespace: tic-tac-toe
   labels:
     app: tic-tac-toe
 spec:
@@ -17,7 +18,7 @@ spec:
     spec:
       containers:
         - name: tic-tac-toe
-          image: 929897439921.dkr.ecr.ap-south-1.amazonaws.com/my-app:sha-7d6533588fb65ecc7f770fea441e5d6c66b8137f
+          image: 929897439921.dkr.ecr.ap-south-1.amazonaws.com/my-app:sha-9059d59a5971bd153a03b8f35e5d2b1c376ab717
           # Image is automatically updated by the CI/CD pipeline
           imagePullPolicy: Always
           ports:

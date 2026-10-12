@@ -472,6 +472,13 @@ jobs:
         with:
           role-to-assume: ${{ secrets.AWS_TERRAFORM_ROLE_ARN }}
           aws-region: ${{ env.AWS_REGION }}
+      - name: Verify AWS identity
+        run: |
+          aws sts get-caller-identity
+          aws eks describe-cluster \
+            --name "$EKS_CLUSTER_NAME" \
+            --region "$AWS_REGION" \
+            --query 'cluster.accessConfig'
 
       - name: Configure kubectl
         run: |

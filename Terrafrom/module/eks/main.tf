@@ -12,6 +12,23 @@ module "eks" {
   enable_irsa           = true
   endpoint_public_access = true
 
+
+  access_entries = {
+  github_actions = {
+    principal_arn = "arn:aws:iam::929897439921:role/eks-2048-terraform-githubactions"
+
+    policy_associations = {
+      deployment_access = {
+        policy_arn = "arn:aws:eks::aws:cluster-access-policy/AmazonEKSClusterAdminPolicy"
+
+        access_scope = {
+          type = "cluster"
+        }
+      }
+    }
+  }
+}
+
   addons = {
     coredns = {
       most_recent = true

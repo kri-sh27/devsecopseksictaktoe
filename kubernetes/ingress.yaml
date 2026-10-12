@@ -3,7 +3,7 @@ kind: Ingress
 metadata:
   name: tic-tac-toe-ingress
   annotations:
-    kubernetes.io/ingress.class: nginx
+    kubernetes.io/ingress.class: alb
     # Add additional annotations as needed for your specific ingress controller
     # nginx.ingress.kubernetes.io/rewrite-target: /
 spec:

@@ -1,15 +1,21 @@
 variable "cluster_name" {
-  type = string
+  description = "EKS cluster name"
+  type        = string
+  default     = "main-eks-cluster"
 }
 
 variable "kubernetes_version" {
-  type = string
+  description = "EKS Kubernetes version"
+  type        = string
+  default     = "1.36"
 }
 
 variable "vpc_id" {
-  type = string
+  description = "VPC ID for the EKS cluster"
+  type        = string
 }
 
-variable "subnet_ids" {
-  type = list(string)
+variable "private_subnet_ids" {
+  description = "Private subnet IDs for EKS and Fargate"
+  type        = list(string)
 }

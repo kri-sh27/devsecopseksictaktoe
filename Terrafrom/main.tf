@@ -168,14 +168,19 @@ module "eks" {
   kubernetes_version = "1.36"
 
 
-  vpc_id = aws_vpc.myvpc.id
-
-  subnet_ids = [
-    aws_subnet.sub1.id,
-    aws_subnet.sub2.id
+  vpc_id             = aws_vpc.myvpc.id
+   private_subnet_ids = [
+    aws_subnet.private1.id,
+    aws_subnet.private2.id
   ]
-
 }
+
+  # subnet_ids = [
+  #   aws_subnet.sub1.id,
+  #   aws_subnet.sub2.id
+  # ]
+
+
 
 output "cluster_name" {
   value = module.eks.cluster_name
@@ -197,3 +202,76 @@ output "application_image_uri" {
 output "load_balancer_dns_name" {
   value = aws_lb.myalb.dns_name
 }
+
+
+# Private subnets for EKS Fargate
+resource "aws_subnet" "private1" {
+  vpc_id                  = aws_vpc.myvpc.id
+  cidr_block              = var.subnet_cidr_private1
+  availability_zone       = "ap-south-1a"
+  map_public_ip_on_launch = false
+
+  tags = {
+    Name = "eks-private-subnet-1"
+    "kubernetes.io/role/internal-elb" = "1"
+    "kubernetes.io/cluster/main-eks-cluster" = "shared"
+  }
+}
+
+resource "aws_subnet" "private2" {
+  vpc_id                  = aws_vpc.myvpc.id
+  cidr_block              = var.subnet_cidr_private2
+  availability_zone       = "ap-south-1b"
+  map_public_ip_on_launch = false
+
+  tags = {
+    Name = "eks-private-subnet-2"
+    "kubernetes.io/role/internal-elb" = "1"
+    "kubernetes.io/cluster/main-eks-cluster" = "shared"
+  }
+}
+
+# NAT gateway in the first public subnet
+resource "aws_eip" "nat" {
+  domain = "vpc"
+
+  tags = {
+    Name = "eks-nat-eip"
+  }
+}
+
+resource "aws_nat_gateway" "nat" {
+  allocation_id = aws_eip.nat.id
+  subnet_id     = aws_subnet.sub1.id
+
+  depends_on = [aws_internet_gateway.igw]
+
+  tags = {
+    Name = "eks-nat"
+  }
+}
+
+# Route private subnet traffic through NAT
+resource "aws_route_table" "private" {
+  vpc_id = aws_vpc.myvpc.id
+
+  route {
+    cidr_block     = "0.0.0.0/0"
+    nat_gateway_id = aws_nat_gateway.nat.id
+  }
+
+  tags = {
+    Name = "eks-private-route-table"
+  }
+}
+
+resource "aws_route_table_association" "private1" {
+  subnet_id      = aws_subnet.private1.id
+  route_table_id = aws_route_table.private.id
+}
+
+resource "aws_route_table_association" "private2" {
+  subnet_id      = aws_subnet.private2.id
+  route_table_id = aws_route_table.private.id
+}
+

@@ -1,15 +1,16 @@
+
 module "eks" {
-  source             = "terraform-aws-modules/eks/aws"
-  version            = "~> 21.0"
+  source  = "terraform-aws-modules/eks/aws"
+  version = "~> 21.0"
+
   name               = var.cluster_name
   kubernetes_version = var.kubernetes_version
 
-  endpoint_public_access = true
-
   vpc_id     = var.vpc_id
-  subnet_ids = var.subnet_ids
+  subnet_ids = var.private_subnet_ids
 
-  enable_irsa = true
+  enable_irsa           = true
+  endpoint_public_access = true
 
   addons = {
     coredns = {
@@ -29,21 +30,32 @@ module "eks" {
     }
   }
 
-  eks_managed_node_groups = {
-    main = {
-      name               = "main-node-group"
-      kubernetes_version = var.kubernetes_version
+  fargate_profiles = {
+    application = {
+      name = "main-application-fargate"
 
-      instance_types = ["t3.small"]
+      selectors = [
+        {
+          namespace = "tic-tac-toe"
+        }
+      ]
 
-      min_size     = 2
-      max_size     = 2
-      desired_size = 2
+      subnet_ids = var.private_subnet_ids
+    }
 
-      capacity_type = "ON_DEMAND"
+    kube_system = {
+      name = "main-kube-system-fargate"
 
-      subnet_ids = var.subnet_ids
+      selectors = [
+        {
+          namespace = "kube-system"
+          labels = {
+            "k8s-app" = "kube-dns"
+          }
+        }
+      ]
 
+      subnet_ids = var.private_subnet_ids
     }
   }
 
@@ -52,4 +64,4 @@ module "eks" {
     Project     = "tic-tac-toe"
     ManagedBy   = "Terraform"
   }
-} 
+}

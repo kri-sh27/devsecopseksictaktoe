@@ -34,7 +34,6 @@ module "eks" {
       name               = "main-node-group"
       kubernetes_version = var.kubernetes_version
 
-
       instance_types = ["t3.small"]
 
       min_size     = 2

@@ -45,4 +45,4 @@ jobs:
 
       - name: Terraform Apply
         working-directory: ./Terrafrom
-        run: terraform apply -auto-approve tfplan
+        run: terraform destroy -auto-approve tfplan

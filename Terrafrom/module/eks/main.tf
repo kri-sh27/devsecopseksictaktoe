@@ -52,4 +52,4 @@ module "eks" {
     Project     = "tic-tac-toe"
     ManagedBy   = "Terraform"
   }
-}
+} 

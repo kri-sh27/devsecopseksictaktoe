@@ -57,6 +57,22 @@ module "eks" {
         }
       ]
 
+    aws_load_balancer_controller = {
+      name = "aws-load-balancer-controller"
+
+      selectors = [
+        {
+          namespace = "kube-system"
+          labels = {
+            "app.kubernetes.io/name" = "aws-load-balancer-controller"
+          }
+        }
+      ]
+
+      subnet_ids = var.private_subnet_ids
+    }
+
+
       subnet_ids = var.private_subnet_ids
     }
 
